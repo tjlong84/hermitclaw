@@ -1,6 +1,7 @@
 """LLM provider routing — Responses API (OpenAI) or Chat Completions (everything else)."""
 
 import json
+import os
 import openai
 from hermitclaw.config import config
 
@@ -269,13 +270,29 @@ def chat(input_list: list, tools: bool = True, instructions: str = None, max_tok
 
 
 def embed(text: str) -> list[float]:
-    """Get an embedding vector for a text string."""
+    """Get an embedding vector for a text string.
+
+    Uses the configured provider's embeddings endpoint. Falls back to OpenAI
+    if the provider doesn't support embeddings (requires OPENAI_API_KEY).
+    """
     from hermitclaw.config import config as cfg
-    response = _client().embeddings.create(
-        model=cfg.get("embedding_model", "text-embedding-3-small"),
-        input=text,
-    )
-    return response.data[0].embedding
+    model = cfg.get("embedding_model", "text-embedding-3-small")
+
+    # Try configured provider first
+    try:
+        client = _completions_client() if not _uses_responses_api() else _client()
+        response = client.embeddings.create(model=model, input=text)
+        return response.data[0].embedding
+    except Exception:
+        if _uses_responses_api():
+            raise  # OpenAI is already the provider, don't retry
+        # Fall back to OpenAI for embeddings
+        fallback_key = os.environ.get("OPENAI_API_KEY")
+        if not fallback_key:
+            raise
+        fallback = openai.OpenAI(api_key=fallback_key)
+        response = fallback.embeddings.create(model=model, input=text)
+        return response.data[0].embedding
 
 
 def chat_short(input_list: list, instructions: str = None) -> str:
