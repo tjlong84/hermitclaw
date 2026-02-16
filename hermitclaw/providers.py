@@ -1,4 +1,4 @@
-"""LLM calls via OpenAI Responses API."""
+"""LLM provider routing — Responses API (OpenAI) or Chat Completions (everything else)."""
 
 import json
 import openai
@@ -179,7 +179,20 @@ def _client() -> openai.OpenAI:
     return openai.OpenAI(api_key=config["api_key"])
 
 
-def chat(input_list: list, tools: bool = True, instructions: str = None, max_tokens: int = 300) -> dict:
+def _uses_responses_api() -> bool:
+    """Returns True if the configured provider uses the OpenAI Responses API."""
+    return config["provider"] == "openai"
+
+
+def _completions_client() -> openai.OpenAI:
+    """Create an OpenAI client configured for Chat Completions (with base_url)."""
+    kwargs = {"api_key": config["api_key"]}
+    if config.get("base_url"):
+        kwargs["base_url"] = config["base_url"]
+    return openai.OpenAI(**kwargs)
+
+
+def _chat_responses(input_list: list, tools: bool = True, instructions: str = None, max_tokens: int = 300) -> dict:
     """
     Make one Responses API call. Returns:
     {
@@ -220,6 +233,39 @@ def chat(input_list: list, tools: bool = True, instructions: str = None, max_tok
         "tool_calls": tool_calls,
         "output": response.output,
     }
+
+
+def _chat_completions(input_list: list, tools: bool = True, instructions: str = None, max_tokens: int = 300) -> dict:
+    """Make a Chat Completions API call. Same return format as _chat_responses."""
+    messages = _translate_input_to_messages(input_list, instructions)
+
+    kwargs = {
+        "model": config["model"],
+        "messages": messages,
+        "max_tokens": max_tokens,
+    }
+    if tools:
+        completions_tools = _translate_tools_for_completions(TOOLS)
+        if completions_tools:
+            kwargs["tools"] = completions_tools
+
+    response = _completions_client().chat.completions.create(**kwargs)
+    return _normalize_completions_response(response)
+
+
+def chat(input_list: list, tools: bool = True, instructions: str = None, max_tokens: int = 300) -> dict:
+    """Make an LLM call. Routes to Responses API or Chat Completions based on provider config.
+
+    Returns:
+    {
+        "text": str or None,
+        "tool_calls": [{"name": str, "arguments": dict, "call_id": str}],
+        "output": list,   # raw output (for appending back to input on follow-up calls)
+    }
+    """
+    if _uses_responses_api():
+        return _chat_responses(input_list, tools, instructions, max_tokens)
+    return _chat_completions(input_list, tools, instructions, max_tokens)
 
 
 def embed(text: str) -> list[float]:
