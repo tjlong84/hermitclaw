@@ -3,6 +3,18 @@
 import builtins
 import os
 import sys
+import types
+
+
+def _blocked_module(name: str):
+    """Create a fake module that raises PermissionError on any attribute access."""
+    mod = types.ModuleType(name)
+
+    def __getattr__(attr):
+        raise PermissionError(f"{name} is blocked in sandbox")
+
+    mod.__getattr__ = __getattr__
+    return mod
 
 
 def _check_path(path, env_root):
@@ -115,8 +127,8 @@ def setup(env_root):
         setattr(_shutil, _fn, _shutil_blocked(_fn))
 
     # --- Block dangerous module imports ---
-    # Note: we block urllib.request (network access) but NOT urllib or urllib.parse,
-    # because pathlib and many libraries import urllib.parse for URL string handling.
+    # Use fake modules (not None) so that 'import urllib' etc. don't fail with
+    # "halted; None in sys.modules" — imports succeed but any use raises.
     for mod in (
         "subprocess",
         "socket",
@@ -129,7 +141,7 @@ def setup(env_root):
         "signal",
         "webbrowser",
     ):
-        sys.modules[mod] = None
+        sys.modules[mod] = _blocked_module(mod)
 
 
 if __name__ == "__main__":
