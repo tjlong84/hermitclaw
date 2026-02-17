@@ -12,7 +12,7 @@ logger = logging.getLogger("hermitclaw.providers")
 
 # Max chars of tool result content sent to the model.
 # Longer results are truncated to avoid hitting cloud API limits.
-MAX_TOOL_CONTENT = 4000
+MAX_TOOL_CONTENT = 16000
 
 
 def _log_error_response(response: httpx.Response) -> None:

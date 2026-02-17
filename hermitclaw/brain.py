@@ -675,7 +675,17 @@ class Brain:
                 }
             )
 
+        max_tool_rounds = config.get("max_tool_rounds", 15)
+        tool_round = 0
         while response["tool_calls"]:
+            tool_round += 1
+            if tool_round > max_tool_rounds:
+                logger.warning(
+                    "Hit max tool rounds (%d), stopping tool loop",
+                    max_tool_rounds,
+                )
+                break
+
             if response.get("text"):
                 await self._emit("thought", text=response["text"])
 
