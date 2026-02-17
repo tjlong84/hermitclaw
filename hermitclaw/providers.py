@@ -51,6 +51,25 @@ TOOLS = [
     },
     {
         "type": "function",
+        "name": "fetch_url",
+        "description": (
+            "Fetch the content of a web page. Use this for research when you need to read "
+            "an article, documentation, or any URL. Returns the page content (HTML or text). "
+            "Only http and https URLs are allowed."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "url": {
+                    "type": "string",
+                    "description": "The URL to fetch (must start with http:// or https://)",
+                }
+            },
+            "required": ["url"],
+        },
+    },
+    {
+        "type": "function",
         "name": "move",
         "description": (
             "Move to a location in your room. Use this to go where feels natural "

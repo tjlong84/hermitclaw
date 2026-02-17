@@ -2,10 +2,14 @@
 
 import logging
 import os
+import re
 import shlex
 import shutil
 import subprocess
 import sys
+import urllib.request
+from urllib.error import URLError
+from urllib.parse import urlparse
 
 logger = logging.getLogger("hermitclaw.tools")
 
@@ -238,9 +242,37 @@ def run_command(command: str, env_root: str) -> str:
         return f"Error: {e}"
 
 
+def fetch_url(url: str, max_chars: int = 50000, timeout: int = 15) -> str:
+    """Fetch a URL and return its content (for research). Runs in main process, not sandbox."""
+    parsed = urlparse(url)
+    if parsed.scheme not in ("http", "https"):
+        return "Error: Only http and https URLs are allowed."
+    try:
+        req = urllib.request.Request(
+            url,
+            headers={"User-Agent": "HermitClaw/1.0 (research)"},
+        )
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            body = resp.read().decode("utf-8", errors="replace")
+        if len(body) > max_chars:
+            body = body[:max_chars] + "\n...(truncated)"
+        # Simple HTML-to-text: strip tags, collapse whitespace
+        text = re.sub(r"<script[^>]*>.*?</script>", "", body, flags=re.DOTALL | re.I)
+        text = re.sub(r"<style[^>]*>.*?</style>", "", text, flags=re.DOTALL | re.I)
+        text = re.sub(r"<[^>]+>", " ", text)
+        text = re.sub(r"\s+", " ", text).strip()
+        return text[:max_chars] if len(text) > max_chars else text or body[:max_chars]
+    except URLError as e:
+        return f"Error fetching URL: {e.reason}"
+    except Exception as e:
+        return f"Error: {e}"
+
+
 def execute_tool(name: str, arguments: dict, env_root: str) -> str:
     """Run a tool by name."""
     if name == "shell":
         return run_command(arguments["command"], env_root)
+    elif name == "fetch_url":
+        return fetch_url(arguments.get("url", ""))
     else:
         return f"Unknown tool: {name}"
