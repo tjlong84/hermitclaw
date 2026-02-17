@@ -719,6 +719,7 @@ class Brain:
                     {
                         "type": "function_call_output",
                         "call_id": call_id,
+                        "name": tool_name,
                         "output": result,
                     }
                 )

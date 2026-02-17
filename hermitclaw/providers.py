@@ -183,13 +183,16 @@ def _translate_input_to_messages(
             continue
 
         if item.get("type") == "function_call_output":
-            messages.append(
-                {
-                    "role": "tool",
-                    "tool_call_id": item["call_id"],
-                    "content": item.get("output", ""),
-                }
-            )
+            tool_msg = {
+                "role": "tool",
+                "content": str(item.get("output", "")),
+            }
+            if config["provider"] == "custom":
+                # Ollama expects tool_name; OpenAI expects tool_call_id
+                tool_msg["tool_name"] = item.get("name", "")
+            else:
+                tool_msg["tool_call_id"] = item["call_id"]
+            messages.append(tool_msg)
         elif "role" in item:
             content = item.get("content")
             if isinstance(content, list):
